@@ -251,7 +251,6 @@ Module.register("MMM-Carousel", {
       Log.info("[MMM-Carousel] Switched to manual mode - stopping automatic rotation");
       this.updatePause(true);
       if (this.transitionTimer) {
-        clearInterval(this.transitionTimer);
         clearTimeout(this.transitionTimer);
         this.transitionTimer = null;
       }
@@ -333,10 +332,9 @@ Module.register("MMM-Carousel", {
   /**
    * Build modules context object with configuration
    * @param {Array} modules - Filtered modules array
-   * @param {number} timer - Transition timer interval
    * @returns {object} Context object with modules and carousel configuration
    */
-  buildModulesContext (modules, timer) {
+  buildModulesContext (modules) {
     const {mode, slides: configSlides} = this.config;
     let slides = null;
     if (mode === "slides") {
@@ -351,38 +349,8 @@ Module.register("MMM-Carousel", {
       showPageControls: this.config.showPageControls,
       slideFadeInSpeed: this.config.slideFadeInSpeed,
       slideFadeOutSpeed: this.config.slideFadeOutSpeed,
-      timings: this.config.timings,
-      defaultTimer: timer
+      timings: this.config.timings
     };
-  },
-
-  /**
-   * Setup automatic transition timers based on configuration
-   * @param {number} timer - Transition timer interval
-   */
-  setupAutomaticTransitions (timer) {
-    // Check if individual timings should be used
-    if (this.config.mode === "slides" && Object.keys(this.config.timings).length > 0) {
-      // Use individual timings - don't set standard timer
-      this.useIndividualTimings = true;
-    } else if (
-      this.config.mode !== "slides" ||
-      this.config.mode === "slides" && timer > 0
-    ) {
-      /**
-       * We set a timer to cause the page transitions
-       * If we're in slides mode and the timer is set to 0, we only use manual transitions
-       */
-      this.transitionTimer = setInterval(this.manualTransition, timer);
-    } else if (
-      this.config.mode === "slides" &&
-      timer === 0 &&
-      this.config.transitionTimeout > 0
-    ) {
-      this.transitionTimer = setTimeout(() => {
-        this.transitionTimeoutCallback();
-      }, this.config.transitionTimeout);
-    }
   },
 
   /**
@@ -392,8 +360,7 @@ Module.register("MMM-Carousel", {
    */
   setUpTransitionTimers (positionIndex) {
     const modules = this.getFilteredModules(positionIndex);
-    const timer = this.getTransitionTimer(positionIndex);
-    this.modulesContext = this.buildModulesContext(modules, timer);
+    this.modulesContext = this.buildModulesContext(modules);
 
     // Initial transition
     this.moduleTransition();
@@ -402,8 +369,6 @@ Module.register("MMM-Carousel", {
     this.manualTransition = (goToIndex, goDirection, goToSlide) => {
       this.moduleTransition(goToIndex, goDirection, goToSlide);
     };
-
-    this.setupAutomaticTransitions(timer);
   },
 
   /**
@@ -549,11 +514,10 @@ Module.register("MMM-Carousel", {
 
     if (modulesContext.showPageIndicators) {
       const currPages = document.getElementsByClassName("mmm-carousel-current-page");
-      if (currPages && currPages.length > 0) {
-        for (let pageIndex = 0; pageIndex < currPages.length; pageIndex += 1) {
-          currPages[pageIndex].classList.remove("mmm-carousel-current-page");
-        }
+      while (currPages.length > 0) {
+        currPages[0].classList.remove("mmm-carousel-current-page");
       }
+
       const currentLabel = document.getElementById(`sliderLabel_${modulesContext.currentIndex}`);
       if (currentLabel) {
         currentLabel.classList.add("mmm-carousel-current-page");
@@ -683,11 +647,6 @@ Module.register("MMM-Carousel", {
     Log.debug(`[MMM-Carousel] Transitioning to slide ${ctx.currentIndex}`);
     this.sendNotification("CAROUSEL_CHANGED", {slide: ctx.currentIndex});
 
-    // Schedule next slide transition with individual timing (only in automatic mode)
-    if (ctx.slides && Object.keys(ctx.timings).length > 0 && !this.isManualMode) {
-      this.scheduleNextTransition(ctx.currentIndex);
-    }
-
     // First, hide all modules
     for (const module of ctx.modules) {
       module.hide(ctx.slideFadeOutSpeed, false, {lockString: "mmmc"});
@@ -696,6 +655,11 @@ Module.register("MMM-Carousel", {
     // Then show appropriate modules after fade out
     setTimeout(() => {
       this.showModulesForSlide(ctx);
+
+      // Schedule next transition after modules are shown (only in automatic mode)
+      if (!this.isManualMode) {
+        this.scheduleNextTransition(ctx.currentIndex);
+      }
     }, ctx.slideFadeOutSpeed);
 
     // Update indicators
@@ -717,26 +681,11 @@ Module.register("MMM-Carousel", {
       return;
     }
 
-    if (this.config.mode === "slides" && Object.keys(this.config.timings).length > 0) {
-      // Use individual slide timings
-      this.updatePause(false);
-      this.scheduleNextTransition(this.currentIndex || 0);
-    } else if (this.config.transitionInterval > 0) {
-      this.updatePause(false);
-      // Restart the timer
-      clearInterval(this.transitionTimer);
-      this.transitionTimer = setInterval(
-        this.manualTransition,
-        this.config.transitionInterval
-      );
-    } else if (this.config.transitionTimeout > 0) {
-      this.updatePause(false);
-      // Restart the timeout
-      clearTimeout(this.transitionTimer);
-      this.transitionTimer = setTimeout(() => {
-        this.transitionTimeoutCallback();
-      }, this.config.transitionTimeout);
-    }
+    this.updatePause(false);
+
+    // Get current index from context
+    const currentIndex = this.modulesContext?.currentIndex || 0;
+    this.scheduleNextTransition(currentIndex);
   },
 
   toggleTimer () {
@@ -749,7 +698,6 @@ Module.register("MMM-Carousel", {
     if (this.transitionTimer) {
       // Timer is running - pause it
       this.updatePause(true);
-      clearInterval(this.transitionTimer);
       clearTimeout(this.transitionTimer);
       this.transitionTimer = null;
     } else {
@@ -785,20 +733,44 @@ Module.register("MMM-Carousel", {
     this.restartTimer();
   },
 
+  /**
+   * Schedule the next transition based on configuration
+   * @param {number} [currentSlideIndex] - Current slide index (for individual timings)
+   */
   scheduleNextTransition (currentSlideIndex) {
     // Clear existing timer
     if (this.transitionTimer) {
-      clearInterval(this.transitionTimer);
       clearTimeout(this.transitionTimer);
+      this.transitionTimer = null;
     }
 
-    // Get the timer for the current slide
-    const slideTimer = this.getSlideTimer(currentSlideIndex);
+    // Don't schedule if in manual mode
+    if (this.isManualMode) {
+      return;
+    }
 
-    if (slideTimer > 0) {
+    // Determine the delay for next transition
+    let delay = 0;
+
+    if (this.config.mode === "slides" && Object.keys(this.config.timings).length > 0) {
+      // Individual slide timings
+      delay = this.getSlideTimer(currentSlideIndex);
+    } else if (this.config.transitionInterval > 0) {
+      // Standard interval mode
+      delay = this.config.transitionInterval;
+    } else if (this.config.transitionTimeout > 0) {
+      // Timeout mode (return to home slide)
+      this.transitionTimer = setTimeout(() => {
+        this.transitionTimeoutCallback();
+      }, this.config.transitionTimeout);
+      return;
+    }
+
+    // Schedule next transition
+    if (delay > 0) {
       this.transitionTimer = setTimeout(() => {
         this.manualTransition();
-      }, slideTimer);
+      }, delay);
     }
   },
 
