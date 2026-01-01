@@ -251,6 +251,7 @@ Module.register("MMM-Carousel", {
       Log.info("[MMM-Carousel] Switched to manual mode - stopping automatic rotation");
       this.updatePause(true);
       if (this.transitionTimer) {
+        clearInterval(this.transitionTimer);
         clearTimeout(this.transitionTimer);
         this.transitionTimer = null;
       }
@@ -357,15 +358,49 @@ Module.register("MMM-Carousel", {
    */
   setUpTransitionTimers (positionIndex) {
     const modules = this.getFilteredModules(positionIndex);
-    this.modulesContext = this.buildModulesContext(modules);
+    const ctx = this.buildModulesContext(modules);
+    ctx.positionIndex = positionIndex;
+    ctx.transitionInterval = this.getTransitionTimer(positionIndex);
 
-    // Initial transition
-    this.moduleTransition();
+    if (positionIndex === null) {
+      // Global/slides mode: single context
+      this.modulesContext = ctx;
 
-    // Create bound function for manual/timed transitions
-    this.manualTransition = (goToIndex, goDirection, goToSlide) => {
-      this.moduleTransition(goToIndex, goDirection, goToSlide);
-    };
+      // Initial transition
+      this.moduleTransition();
+
+      // Create bound function for manual/timed transitions
+      this.manualTransition = (goToIndex, goDirection, goToSlide) => {
+        this.moduleTransition(goToIndex, goDirection, goToSlide);
+      };
+    } else {
+      /*
+       * Positional mode: use closure to capture ctx for this position
+       * Each position gets its own timer with its own context
+       */
+      const transitionFn = () => {
+        const moduleCount = ctx.modules.length;
+        ctx.currentIndex = (ctx.currentIndex + 1) % moduleCount;
+
+        Log.debug(`[MMM-Carousel] Position ${positionIndex}: transitioning to index ${ctx.currentIndex}`);
+
+        // Hide all, then show current
+        for (const mod of ctx.modules) {
+          mod.hide(ctx.slideFadeOutSpeed, false, {lockString: "mmmc"});
+        }
+        setTimeout(() => {
+          ctx.modules[ctx.currentIndex].show(ctx.slideFadeInSpeed, false, {lockString: "mmmc"});
+        }, ctx.slideFadeOutSpeed);
+      };
+
+      // Initial transition
+      transitionFn();
+
+      // Start interval timer (captured in closure)
+      if (ctx.transitionInterval > 0) {
+        setInterval(transitionFn, ctx.transitionInterval);
+      }
+    }
   },
 
   /**
@@ -680,6 +715,14 @@ Module.register("MMM-Carousel", {
 
     this.updatePause(false);
 
+    /*
+     * Positional mode uses setInterval which auto-restarts
+     * Only global/slides mode needs manual restart
+     */
+    if (this.config.mode === "positional") {
+      return;
+    }
+
     // Get current index from context
     const currentIndex = this.modulesContext?.currentIndex || 0;
     this.scheduleNextTransition(currentIndex);
@@ -688,6 +731,11 @@ Module.register("MMM-Carousel", {
   toggleTimer () {
     // Don't toggle timer while manual mode is active
     if (this.isManualMode) {
+      return;
+    }
+
+    // Positional mode uses setInterval - pause/play not supported
+    if (this.config.mode === "positional") {
       return;
     }
 

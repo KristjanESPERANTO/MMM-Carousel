@@ -1,6 +1,6 @@
 {
   "name": "mmm-carousel",
-  "version": "0.7.1",
+  "version": "0.7.2",
   "description": "Displays a single MagicMirror² module at a time or in groups of slides, rotating through the list of configured modules in a carousel-like fashion.",
   "keywords": [
     "magic",
@@ -32,6 +32,8 @@
   "main": "MMM-Carousel.js",
   "type": "module",
   "scripts": {
+    "demo:slides": "cd ../../ && MM_CONFIG_FILE=modules/MMM-Carousel/demo.config.slides.js node --run start:wayland:dev",
+    "demo:positional": "cd ../../ && MM_CONFIG_FILE=modules/MMM-Carousel/demo.config.positional.js node --run start:wayland:dev",
     "lint": "eslint && prettier --check .",
     "lint:fix": "eslint --fix && prettier --write .",
     "prepare": "simple-git-hooks",
