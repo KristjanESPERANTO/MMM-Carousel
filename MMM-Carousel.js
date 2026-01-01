@@ -449,7 +449,7 @@ Module.register("MMM-Carousel", {
    * Apply CSS classes and position changes to a module
    * @param {object} module - The MagicMirror module instance to style
    * @param {object} slideConfig - Slide configuration object with optional classes and position properties
-   * @param {Function} selectWrapper - Function to select the target position wrapper DOM element
+   * @param {(position: string) => HTMLElement} selectWrapper - Function to select the target position wrapper DOM element
    */
   applyModuleStyles (module, slideConfig, selectWrapper) {
     if (typeof slideConfig === "object") {
@@ -548,7 +548,7 @@ Module.register("MMM-Carousel", {
   /**
    * Show/hide modules according to current slide configuration
    * @param {object} modulesContext - The modules array context
-   * @param {Function} selectWrapper - Function to select position wrapper DOM element
+   * @param {(position: string) => HTMLElement} selectWrapper - Function to select position wrapper DOM element
    */
   showModulesForSlide (modulesContext, selectWrapper) {
     for (let moduleIndex = 0; moduleIndex < modulesContext.length; moduleIndex += 1) {
@@ -769,7 +769,6 @@ Module.register("MMM-Carousel", {
 
   /**
    * Creates page control elements (next/previous buttons) for the carousel.
-   *
    * @param {number} slideCount - Total number of slides in the carousel.
    * @returns {object} Object with next and previous wrapper elements.
    */
@@ -814,7 +813,6 @@ Module.register("MMM-Carousel", {
    * Generate the DOM which needs to be displayed.
    * This method is called by the MagicMirror² core and needs to be subclassed
    * if the module wants to display info on the mirror.
-   *
    * @returns {HTMLElement} The DOM element to display
    */
   getDom () {
