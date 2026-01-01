@@ -266,6 +266,11 @@ Please note that this project is released with a [Contributor Code of Conduct](C
 - `node --run lint:fix` - Fix linting and formatter issues.
 - `node --run test` - Run linting and formatter checks + Run spelling check.
 - `node --run test:spelling` - Run spelling check.
+- `node --run release` - Create a new release with automatic version bump and changelog generation.
+- `node --run release -- --release-as minor` - Create a minor version release.
+- `node --run release -- --release-as major` - Create a major version release.
+
+**Note:** This project uses [Conventional Commits](https://www.conventionalcommits.org/) for commit messages. Please follow the format `type: message` (e.g., `feat: add new feature`, `fix: resolve bug`, `docs: update readme`) to ensure your commits are included in the changelog.
 
 ## Changelog
 
