@@ -267,19 +267,16 @@ Module.register("MMM-Carousel", {
    */
   handleCarouselGoto (payload) {
     if (typeof payload === "number" || typeof payload === "string") {
-      try {
-        this.manualTransition(parseInt(payload, 10) - 1);
-        this.restartTimer();
-      } catch {
-        Log.error(`Could not navigate to slide ${payload}`);
+      const index = Number(payload) - 1;
+      if (!Number.isInteger(index) || index < 0) {
+        Log.error(`Invalid slide index: ${payload}`);
+        return;
       }
-    } else if (typeof payload === "object") {
-      try {
-        this.manualTransition(null, 0, payload.slide);
-        this.restartTimer();
-      } catch {
-        Log.error(`Could not navigate to slide ${payload.slide}`);
-      }
+      this.manualTransition(index);
+      this.restartTimer();
+    } else if (payload && payload.slide) {
+      this.manualTransition(null, 0, payload.slide);
+      this.restartTimer();
     }
   },
 
