@@ -39,6 +39,7 @@ export default defineConfig([
       "sort-keys": "off"
     }
   },
+  {"files": ["demo.config.js"], "rules": {"prefer-const": "off"}},
   {
     "files": ["**/*.mjs"],
     "languageOptions": {
