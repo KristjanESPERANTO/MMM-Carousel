@@ -6,11 +6,11 @@ All notable changes to this project will be documented in this file.
 
 ### Bug Fixes
 
-- resolve positional mode only rotating last position ([effa34d](https://github.com/shbatm/MMM-Carousel/commit/effa34d17d1ccea774a2eebaa7ecdf58f83a6e82))
+- resolve positional mode only rotating last position ([effa34d](https://github.com/shbatm/MMM-Carousel/commit/276c7770fb0fcc7a1180a50248e2cf0db9333d60)) - reported by [#174](https://github.com/shbatm/MMM-Carousel/issues/174)
 
 ### Chores
 
-- add demo configs ([347779a](https://github.com/shbatm/MMM-Carousel/commit/347779a0af6a7ede25627eabcc852b1d0005b009))
+- add demo configs ([347779a](https://github.com/shbatm/MMM-Carousel/commit/bea948dd65b02765e4118adeae88976eaad73e4f))
 - **deps:** bump actions/checkout from 5 to 6 ([50bc8bf](https://github.com/shbatm/MMM-Carousel/commit/50bc8bf7649e8f495b3800983a0ef6fe553a17f1))
 
 ## [0.7.1](https://github.com/shbatm/MMM-Carousel/compare/v0.7.0...v0.7.1) (2026-01-01)
