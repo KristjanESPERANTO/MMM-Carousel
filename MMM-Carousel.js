@@ -1,7 +1,5 @@
 /* global Module Log MM KeyHandler */
 
-let carouselInstance = null;
-
 Module.register("MMM-Carousel", {
   defaults: {
     transitionInterval: 10000,
@@ -86,7 +84,6 @@ Module.register("MMM-Carousel", {
 
   start () {
     Log.info(`Starting module: ${this.name} with identifier: ${this.identifier}`);
-    carouselInstance = this;
     this.isManualMode = false;
   },
 
@@ -337,22 +334,26 @@ Module.register("MMM-Carousel", {
    * Build modules context object with configuration
    * @param {Array} modules - Filtered modules array
    * @param {number} timer - Transition timer interval
-   * @returns {Array} Modules array enriched with carousel configuration
+   * @returns {object} Context object with modules and carousel configuration
    */
   buildModulesContext (modules, timer) {
-    if (this.config.mode === "slides") {
-      modules.slides = this.config.slides;
+    const {mode, slides: configSlides} = this.config;
+    let slides = null;
+    if (mode === "slides") {
+      slides = configSlides;
     }
 
-    modules.currentIndex = -1;
-    modules.showPageIndicators = this.config.showPageIndicators;
-    modules.showPageControls = this.config.showPageControls;
-    modules.slideFadeInSpeed = this.config.slideFadeInSpeed;
-    modules.slideFadeOutSpeed = this.config.slideFadeOutSpeed;
-    modules.timings = this.config.timings;
-    modules.defaultTimer = timer;
-
-    return modules;
+    return {
+      modules,
+      slides,
+      currentIndex: -1,
+      showPageIndicators: this.config.showPageIndicators,
+      showPageControls: this.config.showPageControls,
+      slideFadeInSpeed: this.config.slideFadeInSpeed,
+      slideFadeOutSpeed: this.config.slideFadeOutSpeed,
+      timings: this.config.timings,
+      defaultTimer: timer
+    };
   },
 
   /**
@@ -386,18 +387,21 @@ Module.register("MMM-Carousel", {
 
   /**
    * Set up transition timers for carousel slides
-   * Initializes the modules array with configuration and starts automatic transitions
+   * Initializes the modules context and starts automatic transitions
    * @param {string|null} positionIndex - Position name (e.g., 'top_bar') for positional mode, or null for global/slides mode
    */
   setUpTransitionTimers (positionIndex) {
     const modules = this.getFilteredModules(positionIndex);
     const timer = this.getTransitionTimer(positionIndex);
-    const modulesContext = this.buildModulesContext(modules, timer);
+    this.modulesContext = this.buildModulesContext(modules, timer);
 
-    this.moduleTransition.call(modulesContext);
+    // Initial transition
+    this.moduleTransition();
 
-    // Reference to function for manual transitions
-    this.manualTransition = this.moduleTransition.bind(modulesContext);
+    // Create bound function for manual/timed transitions
+    this.manualTransition = (goToIndex, goDirection, goToSlide) => {
+      this.moduleTransition(goToIndex, goDirection, goToSlide);
+    };
 
     this.setupAutomaticTransitions(timer);
   },
@@ -589,59 +593,80 @@ Module.register("MMM-Carousel", {
   },
 
   /**
-   * Show/hide modules according to current slide configuration
-   * @param {object} modulesContext - The modules array context
-   * @param {(position: string) => HTMLElement} selectWrapper - Function to select position wrapper DOM element
+   * Select wrapper DOM element for a given position
+   * @param {string} position - Position name (e.g., 'top_bar', 'bottom_left')
+   * @returns {HTMLElement|false} The container element or false if not found
    */
-  showModulesForSlide (modulesContext, selectWrapper) {
-    for (let moduleIndex = 0; moduleIndex < modulesContext.length; moduleIndex += 1) {
-      Log.debug(`[MMM-Carousel] Processing ${modulesContext[moduleIndex].name}`);
+  selectWrapper (position) {
+    const classes = position.replace("_", " ");
+    const parentWrapper = document.getElementsByClassName(classes);
+    if (parentWrapper.length > 0) {
+      const wrapper = parentWrapper[0].getElementsByClassName("container");
+      if (wrapper.length > 0) {
+        return wrapper[0];
+      }
+    }
+    return false;
+  },
+
+  /**
+   * Show/hide modules according to current slide configuration
+   * @param {object} ctx - The modules context object
+   */
+  showModulesForSlide (ctx) {
+    for (const module of ctx.modules) {
+      Log.debug(`[MMM-Carousel] Processing ${module.name}`);
 
       // Slides mode: check each module against slide config
-      if (modulesContext.slides) {
-        const mods = modulesContext.slides[Object.keys(modulesContext.slides)[modulesContext.currentIndex]];
+      if (ctx.slides) {
+        const slideKey = Object.keys(ctx.slides)[ctx.currentIndex];
+        const slideModules = ctx.slides[slideKey];
         let show = false;
 
-        for (let slideConfigIndex = 0; slideConfigIndex < mods.length; slideConfigIndex += 1) {
-          if (carouselInstance.shouldShowModuleInSlide(modulesContext[moduleIndex], mods[slideConfigIndex])) {
-            carouselInstance.applyModuleStyles(modulesContext[moduleIndex], mods[slideConfigIndex], selectWrapper);
-            modulesContext[moduleIndex].show(modulesContext.slideFadeInSpeed, false, {lockString: "mmmc"});
+        for (const slideConfig of slideModules) {
+          if (this.shouldShowModuleInSlide(module, slideConfig)) {
+            this.applyModuleStyles(module, slideConfig, this.selectWrapper.bind(this));
+            module.show(ctx.slideFadeInSpeed, false, {lockString: "mmmc"});
             show = true;
             break;
           }
         }
 
         if (!show) {
-          modulesContext[moduleIndex].hide(0, false, {lockString: "mmmc"});
+          module.hide(0, false, {lockString: "mmmc"});
         }
-      } else if (moduleIndex === modulesContext.currentIndex) {
-        // Simple mode: show only current index
-        modulesContext[moduleIndex].show(modulesContext.slideFadeInSpeed, false, {lockString: "mmmc"});
       } else {
-        modulesContext[moduleIndex].hide(0, false, {lockString: "mmmc"});
+        // Simple mode: show only current index module
+        const moduleIndex = ctx.modules.indexOf(module);
+        if (moduleIndex === ctx.currentIndex) {
+          module.show(ctx.slideFadeInSpeed, false, {lockString: "mmmc"});
+        } else {
+          module.hide(0, false, {lockString: "mmmc"});
+        }
       }
     }
   },
 
   /**
    * Transition between carousel slides
-   * This method is called with the modules array as context (via bind/call)
    * @param {number} [goToIndex] - Target slide index (defaults to -1 for relative navigation)
    * @param {number} [goDirection] - Direction offset for relative navigation (defaults to 0, e.g., 1 for next, -1 for previous)
    * @param {string} [goToSlide] - Target slide name (for named slide navigation)
    */
   moduleTransition (goToIndex, goDirection, goToSlide) {
+    const ctx = this.modulesContext;
+
     // Set defaults for optional parameters
     const targetIndex = goToIndex ?? -1;
     const direction = goDirection ?? 0;
 
-    let resetCurrentIndex = this.length;
-    if (this.slides) {
-      resetCurrentIndex = Object.keys(this.slides).length;
+    let resetCurrentIndex = ctx.modules.length;
+    if (ctx.slides) {
+      resetCurrentIndex = Object.keys(ctx.slides).length;
     }
 
     // Calculate next index
-    const result = carouselInstance.calculateNextIndex(this, {
+    const result = this.calculateNextIndex(ctx, {
       goToIndex: targetIndex,
       goDirection: direction,
       goToSlide,
@@ -653,41 +678,28 @@ Module.register("MMM-Carousel", {
       return;
     }
 
-    this.currentIndex = result.nextIndex;
+    ctx.currentIndex = result.nextIndex;
 
-    Log.debug(`[MMM-Carousel] Transitioning to slide ${this.currentIndex}`);
-    carouselInstance.sendNotification("CAROUSEL_CHANGED", {slide: this.currentIndex});
+    Log.debug(`[MMM-Carousel] Transitioning to slide ${ctx.currentIndex}`);
+    this.sendNotification("CAROUSEL_CHANGED", {slide: ctx.currentIndex});
 
     // Schedule next slide transition with individual timing (only in automatic mode)
-    if (this.slides && Object.keys(this.timings).length > 0 && !carouselInstance.isManualMode) {
-      carouselInstance.scheduleNextTransition(this.currentIndex);
+    if (ctx.slides && Object.keys(ctx.timings).length > 0 && !this.isManualMode) {
+      this.scheduleNextTransition(ctx.currentIndex);
     }
 
-    // Helper to select wrapper DOM element
-    const selectWrapper = (position) => {
-      const classes = position.replace("_", " ");
-      const parentWrapper = document.getElementsByClassName(classes);
-      if (parentWrapper.length > 0) {
-        const wrapper = parentWrapper[0].getElementsByClassName("container");
-        if (wrapper.length > 0) {
-          return wrapper[0];
-        }
-      }
-      return false;
-    };
-
     // First, hide all modules
-    for (let moduleIndex = 0; moduleIndex < this.length; moduleIndex += 1) {
-      this[moduleIndex].hide(this.slideFadeOutSpeed, false, {lockString: "mmmc"});
+    for (const module of ctx.modules) {
+      module.hide(ctx.slideFadeOutSpeed, false, {lockString: "mmmc"});
     }
 
     // Then show appropriate modules after fade out
     setTimeout(() => {
-      carouselInstance.showModulesForSlide(this, selectWrapper);
-    }, this.slideFadeOutSpeed);
+      this.showModulesForSlide(ctx);
+    }, ctx.slideFadeOutSpeed);
 
     // Update indicators
-    carouselInstance.updateSlideIndicators(this, resetCurrentIndex);
+    this.updateSlideIndicators(ctx, resetCurrentIndex);
   },
 
   updatePause (paused) {
