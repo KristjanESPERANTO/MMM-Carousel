@@ -2,7 +2,26 @@
 
 All notable changes to this project will be documented in this file.
 
-This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+## [0.7.1](https://github.com/shbatm/MMM-Carousel/compare/v0.7.0...v0.7.1) (2026-01-01)
+
+### Documentation
+
+- improve install instructions ([#164](https://github.com/shbatm/MMM-Carousel/issues/164)) ([188a602](https://github.com/shbatm/MMM-Carousel/commit/188a60294f0b0c987c3504b7b9f9e99dbf8994bd))
+
+### Code Refactoring
+
+- eliminate bind/call pattern in favor of clean context object ([3724e7e](https://github.com/shbatm/MMM-Carousel/commit/3724e7e6e836e8c895e3dabd9115d9ed6ff5aa2b))
+- improve input validation in handleCarouselGoto ([e445370](https://github.com/shbatm/MMM-Carousel/commit/e445370c0cfadec8279432e725e2a00f998058ec))
+- split setUpTransitionTimers into focused helper methods ([20b89c5](https://github.com/shbatm/MMM-Carousel/commit/20b89c52f18686b4d1f5962f91bdce3d97c8a17e))
+- unify timer management to use only setTimeout ([c838ae2](https://github.com/shbatm/MMM-Carousel/commit/c838ae2f17c60ff139dba3a02e8572b25a13d1e0))
+
+### Chores
+
+- add automated versioning and changelog generation ([43037f2](https://github.com/shbatm/MMM-Carousel/commit/43037f2e0b788d16b64929fea6d5ab425cbd7c6d))
+- introduce eslint-plugin-jsdoc and handle found issues ([c553e2a](https://github.com/shbatm/MMM-Carousel/commit/c553e2ac49a3f9381302487559201ba9696fdd58))
+- replace husky with simple-git-hooks for pre-commit linting ([916bc42](https://github.com/shbatm/MMM-Carousel/commit/916bc42effad9b75720eb40c6e39e265277b4e23))
+- update devDependencies ([3cacc00](https://github.com/shbatm/MMM-Carousel/commit/3cacc00b21ed716576dbe03001de244899f2afa1))
+- update Node.js setup action to v6 in automated tests workflow ([2e0963f](https://github.com/shbatm/MMM-Carousel/commit/2e0963f6bbc7be9d856607b3890aab7131ed070c))
 
 ## [0.7.0](https://github.com/shbatm/MMM-Carousel/compare/v0.6.2...v0.7.0) ― 2025-11-14 ― Feature Release
 
