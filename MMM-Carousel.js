@@ -292,9 +292,13 @@ Module.register("MMM-Carousel", {
    * Initializes the modules array with configuration and starts automatic transitions
    * @param {string|null} positionIndex - Position name (e.g., 'top_bar') for positional mode, or null for global/slides mode
    */
-  setUpTransitionTimers (positionIndex) {
-    let timer = this.config.transitionInterval;
-    const modules = MM.getModules()
+  /**
+   * Get filtered modules for carousel based on position
+   * @param {string|null} positionIndex - The position to filter modules for, or null for all positions
+   * @returns {Array} Filtered array of MagicMirror modules
+   */
+  getFilteredModules (positionIndex) {
+    return MM.getModules()
       .exceptModule(this)
       .filter((module) => {
         // Use carouselId if available, otherwise fall back to module name
@@ -307,10 +311,15 @@ Module.register("MMM-Carousel", {
           -1 && module.data.position === positionIndex
         );
       }, this);
+  },
 
-    if (this.config.mode === "slides") {
-      modules.slides = this.config.slides;
-    }
+  /**
+   * Determine the transition timer interval
+   * @param {string|null} positionIndex - The position index to check for override
+   * @returns {number} Timer interval in milliseconds
+   */
+  getTransitionTimer (positionIndex) {
+    let timer = this.config.transitionInterval;
 
     if (positionIndex !== null) {
       if (
@@ -321,20 +330,36 @@ Module.register("MMM-Carousel", {
       }
     }
 
+    return timer;
+  },
+
+  /**
+   * Build modules context object with configuration
+   * @param {Array} modules - Filtered modules array
+   * @param {number} timer - Transition timer interval
+   * @returns {Array} Modules array enriched with carousel configuration
+   */
+  buildModulesContext (modules, timer) {
+    if (this.config.mode === "slides") {
+      modules.slides = this.config.slides;
+    }
+
     modules.currentIndex = -1;
     modules.showPageIndicators = this.config.showPageIndicators;
     modules.showPageControls = this.config.showPageControls;
     modules.slideFadeInSpeed = this.config.slideFadeInSpeed;
     modules.slideFadeOutSpeed = this.config.slideFadeOutSpeed;
-    // Add timings configuration to modules object
     modules.timings = this.config.timings;
     modules.defaultTimer = timer;
 
-    this.moduleTransition.call(modules);
+    return modules;
+  },
 
-    // Reference to function for manual transitions
-    this.manualTransition = this.moduleTransition.bind(modules);
-
+  /**
+   * Setup automatic transition timers based on configuration
+   * @param {number} timer - Transition timer interval
+   */
+  setupAutomaticTransitions (timer) {
     // Check if individual timings should be used
     if (this.config.mode === "slides" && Object.keys(this.config.timings).length > 0) {
       // Use individual timings - don't set standard timer
@@ -357,6 +382,24 @@ Module.register("MMM-Carousel", {
         this.transitionTimeoutCallback();
       }, this.config.transitionTimeout);
     }
+  },
+
+  /**
+   * Set up transition timers for carousel slides
+   * Initializes the modules array with configuration and starts automatic transitions
+   * @param {string|null} positionIndex - Position name (e.g., 'top_bar') for positional mode, or null for global/slides mode
+   */
+  setUpTransitionTimers (positionIndex) {
+    const modules = this.getFilteredModules(positionIndex);
+    const timer = this.getTransitionTimer(positionIndex);
+    const modulesContext = this.buildModulesContext(modules, timer);
+
+    this.moduleTransition.call(modulesContext);
+
+    // Reference to function for manual transitions
+    this.manualTransition = this.moduleTransition.bind(modulesContext);
+
+    this.setupAutomaticTransitions(timer);
   },
 
   /**
