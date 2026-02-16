@@ -744,4 +744,271 @@ describe("MMM-Carousel Core Functions", () => {
       assert.equal(instance.manualTransition.mock.calls.length, 0);
     });
   });
+
+  describe("calculateIndicatorIds", () => {
+    it("should calculate all IDs for middle slide", () => {
+      const ids = instance.calculateIndicatorIds(2, 5);
+
+      assert.equal(ids.slider, "slider_2");
+      assert.equal(ids.label, "sliderLabel_2");
+      assert.equal(ids.nextButton, "sliderNextBtn_3");
+      assert.equal(ids.prevButton, "sliderPrevBtn_1");
+    });
+
+    it("should have no prevButton for first slide", () => {
+      const ids = instance.calculateIndicatorIds(0, 5);
+
+      assert.equal(ids.slider, "slider_0");
+      assert.equal(ids.label, "sliderLabel_0");
+      assert.equal(ids.nextButton, "sliderNextBtn_1");
+      assert.equal(ids.prevButton, null);
+    });
+
+    it("should have no nextButton for last slide", () => {
+      const ids = instance.calculateIndicatorIds(4, 5);
+
+      assert.equal(ids.slider, "slider_4");
+      assert.equal(ids.label, "sliderLabel_4");
+      assert.equal(ids.nextButton, null);
+      assert.equal(ids.prevButton, "sliderPrevBtn_3");
+    });
+
+    it("should handle single slide (both buttons null)", () => {
+      const ids = instance.calculateIndicatorIds(0, 1);
+
+      assert.equal(ids.slider, "slider_0");
+      assert.equal(ids.label, "sliderLabel_0");
+      assert.equal(ids.nextButton, null);
+      assert.equal(ids.prevButton, null);
+    });
+  });
+});
+
+describe("MMM-Carousel Transition Logic", () => {
+  let instance;
+
+  beforeEach(() => {
+    instance = Object.create(moduleDefinition);
+    instance.config = {
+      mode: "slides",
+      timings: {},
+      transitionInterval: 10000,
+      homeSlide: 0
+    };
+    Log.warn.mock.resetCalls();
+  });
+
+  describe("showModulesForSlide", () => {
+    it("should show only matching modules in slides mode", () => {
+      const mod1 = {
+        name: "calendar",
+        show: mock.fn(),
+        hide: mock.fn()
+      };
+      const mod2 = {
+        name: "weather",
+        show: mock.fn(),
+        hide: mock.fn()
+      };
+      const mod3 = {
+        name: "clock",
+        show: mock.fn(),
+        hide: mock.fn()
+      };
+
+      const ctx = {
+        modules: [
+          mod1,
+          mod2,
+          mod3
+        ],
+        slides: {
+          page1: [
+            "calendar",
+            "clock"
+          ],
+          page2: ["weather"]
+        },
+        currentIndex: 0,
+        slideFadeInSpeed: 500
+      };
+
+      instance.applyModuleStyles = mock.fn();
+      instance.selectWrapper = mock.fn();
+      instance.showModulesForSlide(ctx);
+
+      // Page1: calendar and clock should show, weather should hide
+      assert.equal(mod1.show.mock.calls.length, 1);
+      assert.equal(mod1.show.mock.calls[0].arguments[0], 500);
+      assert.equal(mod2.hide.mock.calls.length, 1);
+      assert.equal(mod3.show.mock.calls.length, 1);
+    });
+
+    it("should show only current index module in global mode", () => {
+      const mod1 = {
+        name: "calendar",
+        show: mock.fn(),
+        hide: mock.fn()
+      };
+      const mod2 = {
+        name: "weather",
+        show: mock.fn(),
+        hide: mock.fn()
+      };
+
+      const ctx = {
+        modules: [
+          mod1,
+          mod2
+        ],
+        slides: null,
+        currentIndex: 1,
+        slideFadeInSpeed: 300
+      };
+
+      instance.showModulesForSlide(ctx);
+
+      // Only mod2 (index 1) should show
+      assert.equal(mod1.hide.mock.calls.length, 1);
+      assert.equal(mod2.show.mock.calls.length, 1);
+      assert.equal(mod2.show.mock.calls[0].arguments[0], 300);
+    });
+
+    it("should apply module styles when showing in slides mode", () => {
+      const mod1 = {
+        name: "calendar",
+        show: mock.fn(),
+        hide: mock.fn()
+      };
+
+      const ctx = {
+        modules: [mod1],
+        slides: {
+          page1: [
+            {name: "calendar",
+              classes: "custom-class"}
+          ]
+        },
+        currentIndex: 0,
+        slideFadeInSpeed: 500
+      };
+
+      instance.applyModuleStyles = mock.fn();
+      instance.selectWrapper = mock.fn();
+      instance.showModulesForSlide(ctx);
+
+      assert.equal(instance.applyModuleStyles.mock.calls.length, 1);
+      const args = instance.applyModuleStyles.mock.calls[0].arguments;
+      assert.equal(args[0], mod1);
+      assert.deepEqual(args[1], {name: "calendar",
+        classes: "custom-class"});
+    });
+  });
+
+  describe("moduleTransition", () => {
+    beforeEach(() => {
+      instance.modulesContext = {
+        modules: [
+          {
+            name: "mod1",
+            hide: mock.fn()
+          },
+          {
+            name: "mod2",
+            hide: mock.fn()
+          }
+        ],
+        slides: null,
+        currentIndex: 0,
+        slideFadeOutSpeed: 200,
+        slideFadeInSpeed: 300
+      };
+      instance.sendNotification = mock.fn();
+      instance.showModulesForSlide = mock.fn();
+      instance.scheduleNextTransition = mock.fn();
+      instance.updateSlideIndicators = mock.fn();
+      instance.isManualMode = false;
+    });
+
+    it("should calculate next index and update context", () => {
+      instance.moduleTransition(null, 1);
+
+      assert.equal(instance.modulesContext.currentIndex, 1);
+    });
+
+    it("should send CAROUSEL_CHANGED notification", () => {
+      instance.moduleTransition(null, 1);
+
+      assert.equal(instance.sendNotification.mock.calls.length, 1);
+      const [
+        notificationType,
+        payload
+      ] = instance.sendNotification.mock.calls[0].arguments;
+      assert.equal(notificationType, "CAROUSEL_CHANGED");
+      assert.equal(payload.slide, 1);
+    });
+
+    it("should hide all modules immediately", () => {
+      instance.moduleTransition(null, 1);
+
+      assert.equal(instance.modulesContext.modules[0].hide.mock.calls.length, 1);
+      assert.equal(instance.modulesContext.modules[1].hide.mock.calls.length, 1);
+      assert.equal(instance.modulesContext.modules[0].hide.mock.calls[0].arguments[0], 200);
+    });
+
+    it("should call showModulesForSlide after fadeout delay", (_testContext, done) => {
+      instance.moduleTransition(null, 1);
+
+      // ShowModulesForSlide should not be called immediately
+      assert.equal(instance.showModulesForSlide.mock.calls.length, 0);
+
+      // But should be called after fadeout
+      setTimeout(() => {
+        assert.equal(instance.showModulesForSlide.mock.calls.length, 1);
+        assert.equal(instance.showModulesForSlide.mock.calls[0].arguments[0], instance.modulesContext);
+        done();
+      }, 250);
+    });
+
+    it("should schedule next transition in automatic mode", (_testContext, done) => {
+      instance.isManualMode = false;
+      instance.moduleTransition(null, 1);
+
+      setTimeout(() => {
+        assert.equal(instance.scheduleNextTransition.mock.calls.length, 1);
+        assert.equal(instance.scheduleNextTransition.mock.calls[0].arguments[0], 1);
+        done();
+      }, 250);
+    });
+
+    it("should not schedule next transition in manual mode", (_testContext, done) => {
+      instance.isManualMode = true;
+      instance.moduleTransition(null, 1);
+
+      setTimeout(() => {
+        assert.equal(instance.scheduleNextTransition.mock.calls.length, 0);
+        done();
+      }, 250);
+    });
+
+    it("should update slide indicators", () => {
+      instance.modulesContext.slides = {page1: [],
+        page2: []};
+      instance.moduleTransition(null, 1);
+
+      assert.equal(instance.updateSlideIndicators.mock.calls.length, 1);
+      assert.equal(instance.updateSlideIndicators.mock.calls[0].arguments[0], instance.modulesContext);
+      assert.equal(instance.updateSlideIndicators.mock.calls[0].arguments[1], 2);
+    });
+
+    it("should not transition when noChange is true", () => {
+      instance.modulesContext.currentIndex = 1;
+      instance.moduleTransition(1, 0); // Try to go to same index
+
+      // CurrentIndex should not change
+      assert.equal(instance.modulesContext.currentIndex, 1);
+      // No notification should be sent
+      assert.equal(instance.sendNotification.mock.calls.length, 0);
+    });
+  });
 });

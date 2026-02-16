@@ -646,9 +646,36 @@ Module.register("MMM-Carousel", {
   },
 
   /**
-   * Update slide indicators (pagination dots and navigation buttons)
-   * @param {object} modulesContext - The modules array context with currentIndex, slides, showPageIndicators, and showPageControls properties
-   * @param {number} resetCurrentIndex - Total number of slides (for boundary checks)
+   * Calculate element IDs for slide indicators and controls
+   * @param {number} currentIndex - Current slide index
+   * @param {number} maxIndex - Maximum slide index
+   * @returns {object} Object with calculated element IDs
+   */
+  calculateIndicatorIds (currentIndex, maxIndex) {
+    const ids = {
+      slider: `slider_${currentIndex}`,
+      label: `sliderLabel_${currentIndex}`,
+      nextButton: null,
+      prevButton: null
+    };
+
+    // Next button available if not on last slide
+    if (currentIndex < maxIndex - 1) {
+      ids.nextButton = `sliderNextBtn_${currentIndex + 1}`;
+    }
+
+    // Previous button available if not on first slide
+    if (currentIndex > 0) {
+      ids.prevButton = `sliderPrevBtn_${currentIndex - 1}`;
+    }
+
+    return ids;
+  },
+
+  /**
+   * Update slide indicators and controls in the DOM
+   * @param {object} modulesContext - Modules context with current index and configuration
+   * @param {number} resetCurrentIndex - Total number of slides
    */
   updateSlideIndicators (modulesContext, resetCurrentIndex) {
     // Early return if slides don't exist
@@ -661,7 +688,9 @@ Module.register("MMM-Carousel", {
       return;
     }
 
-    const slider = document.getElementById(`slider_${modulesContext.currentIndex}`);
+    const ids = this.calculateIndicatorIds(modulesContext.currentIndex, resetCurrentIndex);
+
+    const slider = document.getElementById(ids.slider);
     if (slider) {
       slider.checked = true;
     } else {
@@ -674,7 +703,7 @@ Module.register("MMM-Carousel", {
         currPages[0].classList.remove("mmm-carousel-current-page");
       }
 
-      const currentLabel = document.getElementById(`sliderLabel_${modulesContext.currentIndex}`);
+      const currentLabel = document.getElementById(ids.label);
       if (currentLabel) {
         currentLabel.classList.add("mmm-carousel-current-page");
       } else {
@@ -689,24 +718,24 @@ Module.register("MMM-Carousel", {
           currBtns[0].classList.remove("mmm-carousel-available");
         }
       }
-      const isNotLastSlide = modulesContext.currentIndex < resetCurrentIndex - 1;
-      if (isNotLastSlide) {
-        Log.debug(`[MMM-Carousel] Trying to enable button sliderNextBtn_${modulesContext.currentIndex + 1}`);
-        const nextButton = document.getElementById(`sliderNextBtn_${modulesContext.currentIndex + 1}`);
+
+      if (ids.nextButton) {
+        Log.debug(`[MMM-Carousel] Trying to enable button ${ids.nextButton}`);
+        const nextButton = document.getElementById(ids.nextButton);
         if (nextButton) {
           nextButton.classList.add("mmm-carousel-available");
         } else {
-          Log.warn(`[MMM-Carousel] Missing next button for index ${modulesContext.currentIndex + 1}`);
+          Log.warn(`[MMM-Carousel] Missing next button ${ids.nextButton}`);
         }
       }
-      const isNotFirstSlide = modulesContext.currentIndex > 0;
-      if (isNotFirstSlide) {
-        Log.debug(`[MMM-Carousel] Trying to enable button sliderPrevBtn_${modulesContext.currentIndex - 1}`);
-        const prevButton = document.getElementById(`sliderPrevBtn_${modulesContext.currentIndex - 1}`);
+
+      if (ids.prevButton) {
+        Log.debug(`[MMM-Carousel] Trying to enable button ${ids.prevButton}`);
+        const prevButton = document.getElementById(ids.prevButton);
         if (prevButton) {
           prevButton.classList.add("mmm-carousel-available");
         } else {
-          Log.warn(`[MMM-Carousel] Missing previous button for index ${modulesContext.currentIndex - 1}`);
+          Log.warn(`[MMM-Carousel] Missing previous button ${ids.prevButton}`);
         }
       }
     }
