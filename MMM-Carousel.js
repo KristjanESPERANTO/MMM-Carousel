@@ -64,6 +64,7 @@ Module.register("MMM-Carousel", {
     showPageControls: true,
     // Individual slide timings configuration
     timings: {},
+    enableKeyboardControl: false,
     // MMM-KeyBindings mapping.
     keyBindings: {
       enabled: true
@@ -88,6 +89,17 @@ Module.register("MMM-Carousel", {
   },
 
   validKeyPress (kp) {
+    // KeyBindings navigation only works in global/slides mode
+    if (this.config.mode === "positional") {
+      Log.warn("[MMM-Carousel] Keyboard navigation via MMM-KeyBindings is not supported in positional mode.");
+      return;
+    }
+
+    if (!this.manualTransition) {
+      Log.warn("[MMM-Carousel] manualTransition not available yet");
+      return;
+    }
+
     if (kp.keyName === this.keyHandler.config.map.NextSlide) {
       this.manualTransition(null, 1);
       this.restartTimer();
@@ -125,6 +137,115 @@ Module.register("MMM-Carousel", {
       });
       this.keyHandler = KeyHandler.create(this.name, this.keyBindings);
     }
+  },
+
+  /**
+   * Get the maximum slide/module index for keyboard navigation
+   * @returns {number} Maximum valid index
+   */
+  getMaxSlideIndex () {
+    if (!this.modulesContext) {
+      return 0;
+    }
+
+    if (this.modulesContext.slides) {
+      return Object.keys(this.modulesContext.slides).length;
+    }
+
+    if (this.modulesContext.modules) {
+      return this.modulesContext.modules.length;
+    }
+
+    return 0;
+  },
+
+  /**
+   * Handle keyboard events for carousel navigation
+   * @param {KeyboardEvent} event - The keyboard event
+   */
+  handleKeyboardEvent (event) {
+    // Ignore if user is typing in an input field
+    const {target} = event;
+    if (target && (target.isContentEditable || [
+      "INPUT",
+      "TEXTAREA",
+      "SELECT"
+    ].includes(target.tagName))) {
+      return;
+    }
+
+    let handled = false;
+
+    switch (event.key) {
+      case "ArrowRight": // Next slide
+        this.manualTransition(null, 1);
+        this.restartTimer();
+        handled = true;
+        break;
+      case "ArrowLeft": // Previous slide
+        this.manualTransition(null, -1);
+        this.restartTimer();
+        handled = true;
+        break;
+      case "ArrowDown": // Pause/play toggle
+        this.toggleTimer();
+        handled = true;
+        break;
+      case "Home": // Key "Home" goes to home slide (index 0)
+      case "0": // Key "0" also goes to home slide (index 0)
+        this.manualTransition(this.config.homeSlide);
+        this.restartTimer();
+        handled = true;
+        break;
+      default:
+        /*
+         * Check for number keys (1-9) to jump to specific slides
+         * Key "1" goes to first slide (index 0), "2" to second slide (index 1), etc.
+         */
+        if (event.key >= "1" && event.key <= "9") {
+          const slideNumber = parseInt(event.key, 10) - 1; // Convert to 0-based index
+          const maxIndex = this.getMaxSlideIndex();
+          // Only navigate if slide exists
+          if (slideNumber < maxIndex) {
+            this.manualTransition(slideNumber);
+            this.restartTimer();
+            handled = true;
+          }
+        }
+        break;
+    }
+
+    if (handled) {
+      event.preventDefault();
+    }
+  },
+
+  /**
+   * Set up native keyboard control (without MMM-KeyBindings)
+   */
+  setupNativeKeyboardHandler () {
+    if (!this.config.enableKeyboardControl) {
+      return;
+    }
+
+    // Keyboard control only works in global and slides mode
+    if (this.config.mode === "positional") {
+      Log.warn("[MMM-Carousel] Native keyboard control is not supported in positional mode. Use global or slides mode instead.");
+      return;
+    }
+
+    // Avoid duplicate registration
+    if (this.keyboardHandler) {
+      return;
+    }
+
+    Log.info("[MMM-Carousel] Setting up native keyboard control");
+
+    this.keyboardHandler = (event) => {
+      this.handleKeyboardEvent(event);
+    };
+
+    document.addEventListener("keydown", this.keyboardHandler, true);
   },
 
   /**
@@ -200,6 +321,9 @@ Module.register("MMM-Carousel", {
         }
       }
     }
+
+    // Setup native keyboard handler after manualTransition is defined
+    this.setupNativeKeyboardHandler();
 
     this.registerApiActions();
   },
@@ -703,8 +827,10 @@ Module.register("MMM-Carousel", {
 
     const carousel = document.querySelector(".mmm-carousel-container");
 
-    if (this.paused) carousel.classList.add("mmm-carousel-paused");
-    else carousel.classList.remove("mmm-carousel-paused");
+    if (carousel) {
+      if (this.paused) carousel.classList.add("mmm-carousel-paused");
+      else carousel.classList.remove("mmm-carousel-paused");
+    }
   },
 
   restartTimer () {

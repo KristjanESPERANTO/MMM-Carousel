@@ -114,20 +114,8 @@ const config = {
           enabled: true,
           ignoreModules: [],
           overrideTransitionInterval: 15000
-        },
-        keyBindings: {
-          enabled: true,
-          mode: "DEFAULT"
         }
-      }
-    },
-    {
-      module: "MMM-KeyBindings",
-      config: {
-        enableKeyboard: true,
-        evdev: {
-          enabled: false
-        }
+        // Note: Keyboard navigation is not supported in positional mode
       }
     }
   ]

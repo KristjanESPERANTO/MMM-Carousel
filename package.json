@@ -32,8 +32,9 @@
   "main": "MMM-Carousel.js",
   "type": "module",
   "scripts": {
-    "demo:slides": "cd ../../ && MM_CONFIG_FILE=modules/MMM-Carousel/demo.config.slides.js node --run start:wayland:dev",
-    "demo:positional": "cd ../../ && MM_CONFIG_FILE=modules/MMM-Carousel/demo.config.positional.js node --run start:wayland:dev",
+    "demo:global": "cd ../../ && MM_CONFIG_FILE=modules/MMM-Carousel/demo.config.global.js node --run start:dev",
+    "demo:slides": "cd ../../ && MM_CONFIG_FILE=modules/MMM-Carousel/demo.config.slides.js node --run start:dev",
+    "demo:positional": "cd ../../ && MM_CONFIG_FILE=modules/MMM-Carousel/demo.config.positional.js node --run start:dev",
     "lint": "eslint && prettier --check .",
     "lint:fix": "eslint --fix && prettier --write .",
     "prepare": "node -e \"try{require('simple-git-hooks').run()}catch(e){}\"",
