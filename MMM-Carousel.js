@@ -604,8 +604,8 @@ Module.register("MMM-Carousel", {
     if (typeof slideConfig === "object" && "name" in slideConfig && slideConfig.name === module.name) {
       // Check carouselId for multiple instances
       if (typeof slideConfig.carouselId === "undefined" ||
-        typeof module.data.config.carouselId === "undefined" ||
-        slideConfig.carouselId === module.data.config.carouselId) {
+        typeof module.data?.config?.carouselId === "undefined" ||
+        slideConfig.carouselId === module.data?.config?.carouselId) {
         return true;
       }
     }
