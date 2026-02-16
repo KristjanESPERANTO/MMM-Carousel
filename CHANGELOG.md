@@ -2,15 +2,51 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.7.3](https://github.com/shbatm/MMM-Carousel/compare/v0.7.2...v0.7.3) (2026-02-16)
+
+
+### Features
+
+* add native keyboard control without external dependencies ([7cb581d](https://github.com/shbatm/MMM-Carousel/commit/7cb581dee40ca32e3821acc288f804c13598f4ae))
+
+
+### Bug Fixes
+
+* prevent TypeError when module.data is undefined in shouldShowModuleInSlide ([f143d6d](https://github.com/shbatm/MMM-Carousel/commit/f143d6da83425ce79cd4d8e762cc5c85a82b2722))
+
+
+### Documentation
+
+* update issue reference ([e2c8c1e](https://github.com/shbatm/MMM-Carousel/commit/e2c8c1e45e07f352e8682464f5afc00d9959f9e2))
+
+
+### Code Refactoring
+
+* extract indicator ID calculation logic for better testability ([c35f84a](https://github.com/shbatm/MMM-Carousel/commit/c35f84af45d651ffa6517d3f75622225eb12a023))
+
+
+### Tests
+
+* add tests for module filtering, timeouts, and initialization ([8afa52f](https://github.com/shbatm/MMM-Carousel/commit/8afa52fa15df1ca1247d7eea6abe1b5b4821183e))
+* add unit tests ([2292706](https://github.com/shbatm/MMM-Carousel/commit/22927067ad878938130ca1661b9309a0584e7316))
+
+
+### Chores
+
+* change runner from ubuntu-latest to ubuntu-slim in automated tests ([4cb9865](https://github.com/shbatm/MMM-Carousel/commit/4cb9865aa166af971830269fe5e185e8105d8fb1))
+* update devDependencies ([8c1aafa](https://github.com/shbatm/MMM-Carousel/commit/8c1aafa4c404cf9619acb097572017593d2a5b96))
+* update eslint config ([fe0a221](https://github.com/shbatm/MMM-Carousel/commit/fe0a2211d13473bb7eb737a41430810782fc01c8))
+* update prepare script to handle simple-git-hooks execution ([cafdb02](https://github.com/shbatm/MMM-Carousel/commit/cafdb02311ba2d0f732d1d87e4a9466616633d0b))
+
 ## [0.7.2](https://github.com/shbatm/MMM-Carousel/compare/v0.7.1...v0.7.2) (2026-01-01)
 
 ### Bug Fixes
 
-- resolve positional mode only rotating last position ([effa34d](https://github.com/shbatm/MMM-Carousel/commit/effa34d17d1ccea774a2eebaa7ecdf58f83a6e82))
+- resolve positional mode only rotating last position ([effa34d](https://github.com/shbatm/MMM-Carousel/commit/276c7770fb0fcc7a1180a50248e2cf0db9333d60)) - reported by [#174](https://github.com/shbatm/MMM-Carousel/issues/174)
 
 ### Chores
 
-- add demo configs ([347779a](https://github.com/shbatm/MMM-Carousel/commit/347779a0af6a7ede25627eabcc852b1d0005b009))
+- add demo configs ([347779a](https://github.com/shbatm/MMM-Carousel/commit/bea948dd65b02765e4118adeae88976eaad73e4f))
 - **deps:** bump actions/checkout from 5 to 6 ([50bc8bf](https://github.com/shbatm/MMM-Carousel/commit/50bc8bf7649e8f495b3800983a0ef6fe553a17f1))
 
 ## [0.7.1](https://github.com/shbatm/MMM-Carousel/compare/v0.7.0...v0.7.1) (2026-01-01)

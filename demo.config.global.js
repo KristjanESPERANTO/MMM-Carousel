@@ -79,19 +79,11 @@ const config = {
       position: "bottom_bar",
       config: {
         transitionInterval: 10000,
-        showPageIndicators: true,
-        showPageControls: true,
+        showPageIndicators: false,
+        showPageControls: false,
         enableKeyboardControl: true,
         ignoreModules: ["clock"],
-        mode: "slides",
-        slides: [
-          [
-            "calendar",
-            "compliments"
-          ],
-          ["weather"],
-          ["newsfeed"]
-        ]
+        mode: "global"
       }
     }
   ]

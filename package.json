@@ -1,6 +1,6 @@
 {
   "name": "mmm-carousel",
-  "version": "0.7.2",
+  "version": "0.7.3",
   "description": "Displays a single MagicMirror² module at a time or in groups of slides, rotating through the list of configured modules in a carousel-like fashion.",
   "keywords": [
     "magic",
@@ -32,14 +32,16 @@
   "main": "MMM-Carousel.js",
   "type": "module",
   "scripts": {
-    "demo:slides": "cd ../../ && MM_CONFIG_FILE=modules/MMM-Carousel/demo.config.slides.js node --run start:wayland:dev",
-    "demo:positional": "cd ../../ && MM_CONFIG_FILE=modules/MMM-Carousel/demo.config.positional.js node --run start:wayland:dev",
+    "demo:global": "cd ../../ && MM_CONFIG_FILE=modules/MMM-Carousel/demo.config.global.js node --run start:dev",
+    "demo:slides": "cd ../../ && MM_CONFIG_FILE=modules/MMM-Carousel/demo.config.slides.js node --run start:dev",
+    "demo:positional": "cd ../../ && MM_CONFIG_FILE=modules/MMM-Carousel/demo.config.positional.js node --run start:dev",
     "lint": "eslint && prettier --check .",
     "lint:fix": "eslint --fix && prettier --write .",
-    "prepare": "simple-git-hooks",
+    "prepare": "node -e \"try{require('simple-git-hooks').run()}catch(e){}\"",
     "release": "commit-and-tag-version",
-    "test": "node --run lint && node --run test:spelling",
-    "test:spelling": "cspell . .github"
+    "test": "node --run test:unit && node --run lint && node --run test:spelling",
+    "test:spelling": "cspell . .github",
+    "test:unit": "node --test tests/unit/*.test.js"
   },
   "simple-git-hooks": {
     "pre-commit": "npx lint-staged"
@@ -54,15 +56,15 @@
     "@eslint/css": "^0.14.1",
     "@eslint/js": "^9.39.2",
     "@eslint/markdown": "^7.5.1",
-    "@stylistic/eslint-plugin": "^5.6.1",
+    "@stylistic/eslint-plugin": "^5.8.0",
     "commit-and-tag-version": "^12.6.1",
-    "cspell": "^9.4.0",
+    "cspell": "^9.6.4",
     "eslint": "^9.39.2",
     "eslint-plugin-import-x": "^4.16.1",
-    "eslint-plugin-jsdoc": "^61.5.0",
-    "globals": "^16.5.0",
+    "eslint-plugin-jsdoc": "^62.5.5",
+    "globals": "^17.3.0",
     "lint-staged": "^16.2.7",
-    "prettier": "^3.7.4",
+    "prettier": "^3.8.1",
     "simple-git-hooks": "^2.13.1"
   }
 }
