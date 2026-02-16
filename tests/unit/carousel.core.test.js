@@ -1,0 +1,747 @@
+/* eslint-disable max-lines-per-function, no-underscore-dangle, init-declarations, no-undef, sort-imports */
+
+import {beforeEach, describe, it, mock} from "node:test";
+import assert from "node:assert/strict";
+import {dirname, join} from "node:path";
+import {fileURLToPath} from "node:url";
+import {readFileSync} from "node:fs";
+import vm from "node:vm";
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+
+// Mock MagicMirror globals
+let moduleDefinition = null;
+
+global.Module = {
+  register (name, definition) {
+    moduleDefinition = definition;
+    return definition;
+  }
+};
+
+global.Log = {
+  info: mock.fn(),
+  log: mock.fn(),
+  debug: mock.fn(),
+  warn: mock.fn(),
+  error: mock.fn()
+};
+
+global.MM = {
+  getModules () {
+    return {
+      exceptModule () {
+        return {
+          filter () {
+            return [];
+          }
+        };
+      }
+    };
+  }
+};
+
+global.KeyHandler = {};
+
+// Load the module by executing it in the global context
+const modulePath = join(__dirname, "../../MMM-Carousel.js");
+const moduleCode = readFileSync(modulePath, "utf8");
+const script = new vm.Script(moduleCode, {filename: "MMM-Carousel.js"});
+const context = vm.createContext({
+  Module: global.Module,
+  Log: global.Log,
+  MM: global.MM,
+  KeyHandler: global.KeyHandler,
+  document: {},
+  window: {},
+  console: global.console,
+  setTimeout: global.setTimeout,
+  clearTimeout: global.clearTimeout,
+  setInterval: global.setInterval,
+  clearInterval: global.clearInterval
+});
+script.runInContext(context);
+
+describe("MMM-Carousel Core Functions", () => {
+  let instance;
+
+  beforeEach(() => {
+    // Create a fresh instance for each test
+    instance = Object.create(moduleDefinition);
+    instance.config = {
+      mode: "slides",
+      timings: {},
+      transitionInterval: 10000,
+      homeSlide: 0
+    };
+    Log.warn.mock.resetCalls();
+  });
+
+  describe("getMaxSlideIndex", () => {
+    it("should return 0 when modulesContext is not set", () => {
+      instance.modulesContext = null;
+      assert.equal(instance.getMaxSlideIndex(), 0);
+    });
+
+    it("should return slide count when slides exist", () => {
+      instance.modulesContext = {
+        slides: {slide1: [],
+          slide2: [],
+          slide3: []}
+      };
+      assert.equal(instance.getMaxSlideIndex(), 3);
+    });
+
+    it("should return module count when no slides", () => {
+      instance.modulesContext = {
+        modules: [
+          {},
+          {},
+          {},
+          {}
+        ]
+      };
+      assert.equal(instance.getMaxSlideIndex(), 4);
+    });
+
+    it("should return 0 when modulesContext is empty object", () => {
+      instance.modulesContext = {};
+      assert.equal(instance.getMaxSlideIndex(), 0);
+    });
+  });
+
+  describe("calculateNextIndex", () => {
+    it("should increment index by 1 with goDirection", () => {
+      const ctx = {currentIndex: 2,
+        slides: null};
+      const result = instance.calculateNextIndex(ctx, {
+        goToIndex: -1,
+        goDirection: 1,
+        resetCurrentIndex: 5
+      });
+      assert.equal(result.nextIndex, 3);
+      assert.equal(result.noChange, false);
+    });
+
+    it("should wrap around to 0 when exceeding max", () => {
+      const ctx = {currentIndex: 4,
+        slides: null};
+      const result = instance.calculateNextIndex(ctx, {
+        goToIndex: -1,
+        goDirection: 1,
+        resetCurrentIndex: 5
+      });
+      assert.equal(result.nextIndex, 0);
+    });
+
+    it("should wrap around to last when going negative", () => {
+      const ctx = {currentIndex: 0,
+        slides: null};
+      const result = instance.calculateNextIndex(ctx, {
+        goToIndex: -1,
+        goDirection: -1,
+        resetCurrentIndex: 5
+      });
+      assert.equal(result.nextIndex, 4);
+    });
+
+    it("should jump to specific index", () => {
+      const ctx = {currentIndex: 2,
+        slides: null};
+      const result = instance.calculateNextIndex(ctx, {
+        goToIndex: 4,
+        goDirection: 0,
+        resetCurrentIndex: 5
+      });
+      assert.equal(result.nextIndex, 4);
+    });
+
+    it("should set noChange when jumping to current index", () => {
+      const ctx = {currentIndex: 2,
+        slides: null};
+      const result = instance.calculateNextIndex(ctx, {
+        goToIndex: 2,
+        goDirection: 0,
+        resetCurrentIndex: 5
+      });
+      assert.equal(result.noChange, true);
+    });
+
+    it("should find slide by name", () => {
+      const ctx = {
+        currentIndex: 0,
+        slides: {main: [],
+          page2: [],
+          page3: []}
+      };
+      const result = instance.calculateNextIndex(ctx, {
+        goToIndex: -1,
+        goDirection: 0,
+        goToSlide: "page2",
+        resetCurrentIndex: 3
+      });
+      assert.equal(result.nextIndex, 1);
+    });
+
+    it("should set noChange when slide name not found", () => {
+      const ctx = {
+        currentIndex: 1,
+        slides: {main: [],
+          page2: [],
+          page3: []}
+      };
+      const result = instance.calculateNextIndex(ctx, {
+        goToIndex: -1,
+        goDirection: 0,
+        goToSlide: "nonexistent",
+        resetCurrentIndex: 3
+      });
+      // When slide not found, nextIndex stays at currentIndex but noChange is false
+      assert.equal(result.nextIndex, 1);
+      assert.equal(result.noChange, false);
+    });
+  });
+
+  describe("getSlideTimer", () => {
+    it("should return individual slide timing when defined", () => {
+      instance.config.timings = {0: 5000,
+        2: 15000};
+      instance.config.transitionInterval = 10000;
+      assert.equal(instance.getSlideTimer(0), 5000);
+      assert.equal(instance.getSlideTimer(2), 15000);
+    });
+
+    it("should return default transitionInterval when slide timing not defined", () => {
+      instance.config.timings = {0: 5000};
+      instance.config.transitionInterval = 10000;
+      assert.equal(instance.getSlideTimer(1), 10000);
+    });
+
+    it("should handle empty timings object", () => {
+      instance.config.timings = {};
+      instance.config.transitionInterval = 8000;
+      assert.equal(instance.getSlideTimer(5), 8000);
+    });
+  });
+
+  describe("shouldShowModuleInSlide", () => {
+    it("should match module by name string", () => {
+      const module = {name: "calendar"};
+      assert.equal(instance.shouldShowModuleInSlide(module, "calendar"), true);
+      assert.equal(instance.shouldShowModuleInSlide(module, "weather"), false);
+    });
+
+    it("should match module by config object with name", () => {
+      const module = {name: "calendar",
+        data: {config: {}}};
+      const slideConfig = {name: "calendar"};
+      assert.equal(instance.shouldShowModuleInSlide(module, slideConfig), true);
+    });
+
+    it("should match module by carouselId when specified", () => {
+      const module = {
+        name: "calendar",
+        data: {config: {carouselId: "cal1"}}
+      };
+      const slideConfig = {name: "calendar",
+        carouselId: "cal1"};
+      assert.equal(instance.shouldShowModuleInSlide(module, slideConfig), true);
+    });
+
+    it("should not match when carouselId differs", () => {
+      const module = {
+        name: "calendar",
+        data: {config: {carouselId: "cal1"}}
+      };
+      const slideConfig = {name: "calendar",
+        carouselId: "cal2"};
+      assert.equal(instance.shouldShowModuleInSlide(module, slideConfig), false);
+    });
+
+    it("should handle module without data property", () => {
+      const module = {name: "weather"};
+      const slideConfig = {name: "weather",
+        carouselId: "w1"};
+      // When module.data is undefined, carouselId is treated as undefined -> matches
+      assert.equal(instance.shouldShowModuleInSlide(module, slideConfig), true);
+    });
+
+    it("should match when slideConfig has no carouselId", () => {
+      const module = {
+        name: "calendar",
+        data: {config: {carouselId: "cal1"}}
+      };
+      const slideConfig = {name: "calendar"};
+      assert.equal(instance.shouldShowModuleInSlide(module, slideConfig), true);
+    });
+  });
+
+  describe("getTransitionTimer", () => {
+    it("should return default transitionInterval for null position", () => {
+      instance.config.transitionInterval = 12000;
+      assert.equal(instance.getTransitionTimer(null), 12000);
+    });
+
+    it("should return override for specific position", () => {
+      instance.config.transitionInterval = 10000;
+      instance.config.top_left = {
+        enabled: true,
+        overrideTransitionInterval: 8000
+      };
+      assert.equal(instance.getTransitionTimer("top_left"), 8000);
+    });
+
+    it("should return default when no override exists", () => {
+      instance.config.transitionInterval = 10000;
+      instance.config.top_left = {enabled: true};
+      assert.equal(instance.getTransitionTimer("top_left"), 10000);
+    });
+  });
+
+  describe("handleKeyboardEvent", () => {
+    beforeEach(() => {
+      instance.manualTransition = mock.fn();
+      instance.restartTimer = mock.fn();
+      instance.toggleTimer = mock.fn();
+      instance.getMaxSlideIndex = () => 5;
+    });
+
+    it("should ignore events from input fields", () => {
+      const event = {
+        target: {tagName: "INPUT"},
+        key: "ArrowRight",
+        preventDefault: mock.fn()
+      };
+      instance.handleKeyboardEvent(event);
+      assert.equal(instance.manualTransition.mock.calls.length, 0);
+    });
+
+    it("should ignore events from contentEditable", () => {
+      const event = {
+        target: {isContentEditable: true},
+        key: "ArrowRight",
+        preventDefault: mock.fn()
+      };
+      instance.handleKeyboardEvent(event);
+      assert.equal(instance.manualTransition.mock.calls.length, 0);
+    });
+
+    it("should ignore events from textarea fields", () => {
+      const event = {
+        target: {tagName: "TEXTAREA"},
+        key: "ArrowRight",
+        preventDefault: mock.fn()
+      };
+      instance.handleKeyboardEvent(event);
+      assert.equal(instance.manualTransition.mock.calls.length, 0);
+    });
+
+    it("should ignore events from select elements", () => {
+      const event = {
+        target: {tagName: "SELECT"},
+        key: "ArrowLeft",
+        preventDefault: mock.fn()
+      };
+      instance.handleKeyboardEvent(event);
+      assert.equal(instance.manualTransition.mock.calls.length, 0);
+    });
+
+    it("should navigate to next slide on ArrowRight", () => {
+      const event = {
+        target: {tagName: "DIV"},
+        key: "ArrowRight",
+        preventDefault: mock.fn()
+      };
+      instance.handleKeyboardEvent(event);
+      assert.equal(instance.manualTransition.mock.calls.length, 1);
+      const args = instance.manualTransition.mock.calls[0].arguments;
+      assert.equal(args[0], null);
+      assert.equal(args[1], 1);
+      assert.equal(event.preventDefault.mock.calls.length, 1);
+    });
+
+    it("should navigate to previous slide on ArrowLeft", () => {
+      const event = {
+        target: {tagName: "DIV"},
+        key: "ArrowLeft",
+        preventDefault: mock.fn()
+      };
+      instance.handleKeyboardEvent(event);
+      assert.equal(instance.manualTransition.mock.calls.length, 1);
+      const args = instance.manualTransition.mock.calls[0].arguments;
+      assert.equal(args[0], null);
+      assert.equal(args[1], -1);
+    });
+
+    it("should toggle timer on ArrowDown", () => {
+      const event = {
+        target: {tagName: "DIV"},
+        key: "ArrowDown",
+        preventDefault: mock.fn()
+      };
+      instance.handleKeyboardEvent(event);
+      assert.equal(instance.toggleTimer.mock.calls.length, 1);
+    });
+
+    it("should jump to home on Home key", () => {
+      instance.config.homeSlide = 2;
+      const event = {
+        target: {tagName: "DIV"},
+        key: "Home",
+        preventDefault: mock.fn()
+      };
+      instance.handleKeyboardEvent(event);
+      assert.equal(instance.manualTransition.mock.calls.length, 1);
+      const args = instance.manualTransition.mock.calls[0].arguments;
+      assert.equal(args[0], 2);
+    });
+
+    it("should jump to home on 0 key", () => {
+      instance.config.homeSlide = 1;
+      const event = {
+        target: {tagName: "DIV"},
+        key: "0",
+        preventDefault: mock.fn()
+      };
+      instance.handleKeyboardEvent(event);
+      assert.equal(instance.manualTransition.mock.calls.length, 1);
+      const args = instance.manualTransition.mock.calls[0].arguments;
+      assert.equal(args[0], 1);
+    });
+
+    it("should jump to slide 1 on key \"1\"", () => {
+      const event = {
+        target: {tagName: "DIV"},
+        key: "1",
+        preventDefault: mock.fn()
+      };
+      instance.handleKeyboardEvent(event);
+      assert.equal(instance.manualTransition.mock.calls.length, 1);
+      const args = instance.manualTransition.mock.calls[0].arguments;
+      assert.equal(args[0], 0); // "1" → index 0
+    });
+
+    it("should jump to slide 5 on key \"5\"", () => {
+      const event = {
+        target: {tagName: "DIV"},
+        key: "5",
+        preventDefault: mock.fn()
+      };
+      instance.handleKeyboardEvent(event);
+      assert.equal(instance.manualTransition.mock.calls.length, 1);
+      const args = instance.manualTransition.mock.calls[0].arguments;
+      assert.equal(args[0], 4); // "5" → index 4
+    });
+
+    it("should not navigate when slide number exceeds max", () => {
+      const event = {
+        target: {tagName: "DIV"},
+        key: "9",
+        preventDefault: mock.fn()
+      };
+      instance.handleKeyboardEvent(event);
+      // GetMaxSlideIndex returns 5, so key "9" (index 8) should be ignored
+      assert.equal(instance.manualTransition.mock.calls.length, 0);
+      assert.equal(event.preventDefault.mock.calls.length, 0);
+    });
+
+    it("should not call preventDefault for unhandled keys", () => {
+      const event = {
+        target: {tagName: "DIV"},
+        key: "x",
+        preventDefault: mock.fn()
+      };
+      instance.handleKeyboardEvent(event);
+      assert.equal(event.preventDefault.mock.calls.length, 0);
+    });
+  });
+
+  describe("setupNativeKeyboardHandler", () => {
+    it("should not setup handler when enableKeyboardControl is false", () => {
+      instance.config.enableKeyboardControl = false;
+      instance.keyboardHandler = null;
+      instance.setupNativeKeyboardHandler();
+      // Handler remains null when disabled
+      assert.equal(instance.keyboardHandler, null);
+    });
+
+    it("should warn and skip setup in positional mode", () => {
+      instance.config.mode = "positional";
+      instance.config.enableKeyboardControl = true;
+      instance.keyboardHandler = null;
+      instance.setupNativeKeyboardHandler();
+      assert.equal(Log.warn.mock.calls.length, 1);
+      assert.match(Log.warn.mock.calls[0].arguments[0], /positional mode/u);
+    });
+
+    it("should not register duplicate handlers", () => {
+      instance.config.enableKeyboardControl = true;
+      instance.keyboardHandler = {existing: true}; // Already registered
+      const initialHandler = instance.keyboardHandler;
+      instance.setupNativeKeyboardHandler();
+      assert.equal(instance.keyboardHandler, initialHandler);
+    });
+  });
+
+  describe("handleCarouselGoto", () => {
+    beforeEach(() => {
+      instance.manualTransition = mock.fn();
+      instance.restartTimer = mock.fn();
+    });
+
+    it("should handle numeric payload (1-indexed)", () => {
+      instance.handleCarouselGoto(3);
+      const args = instance.manualTransition.mock.calls[0].arguments;
+      assert.equal(args[0], 2); // 3 - 1 = index 2
+    });
+
+    it("should handle string number payload", () => {
+      instance.handleCarouselGoto("5");
+      const args = instance.manualTransition.mock.calls[0].arguments;
+      assert.equal(args[0], 4);
+    });
+
+    it("should handle object with slide property", () => {
+      instance.handleCarouselGoto({slide: "home"});
+      const args = instance.manualTransition.mock.calls[0].arguments;
+      assert.equal(args[0], null);
+      assert.equal(args[1], 0);
+      assert.equal(args[2], "home");
+    });
+
+    it("should reject negative indices", () => {
+      instance.handleCarouselGoto(0);
+      assert.equal(instance.manualTransition.mock.calls.length, 0);
+    });
+
+    it("should reject non-integer indices", () => {
+      instance.handleCarouselGoto("abc");
+      assert.equal(instance.manualTransition.mock.calls.length, 0);
+    });
+  });
+
+  describe("handleToggleAutoMode", () => {
+    beforeEach(() => {
+      instance.updatePause = mock.fn();
+      instance.restartTimer = mock.fn();
+      instance.transitionTimer = {id: 123};
+      instance.isManualMode = false;
+    });
+
+    it("should switch to manual mode and pause", () => {
+      instance.handleToggleAutoMode();
+      assert.equal(instance.isManualMode, true);
+      assert.equal(instance.updatePause.mock.calls[0].arguments[0], true);
+      assert.equal(instance.transitionTimer, null);
+    });
+
+    it("should switch back to auto mode and restart", () => {
+      instance.isManualMode = true;
+      instance.handleToggleAutoMode();
+      assert.equal(instance.isManualMode, false);
+      assert.equal(instance.updatePause.mock.calls[0].arguments[0], false);
+      assert.equal(instance.restartTimer.mock.calls.length, 1);
+    });
+  });
+
+  describe("toggleTimer", () => {
+    beforeEach(() => {
+      instance.config.mode = "slides";
+      instance.updatePause = mock.fn();
+      instance.restartTimer = mock.fn();
+      instance.isManualMode = false;
+    });
+
+    it("should pause when timer is running", () => {
+      instance.transitionTimer = {id: 456};
+      instance.toggleTimer();
+      assert.equal(instance.transitionTimer, null);
+      assert.equal(instance.updatePause.mock.calls[0].arguments[0], true);
+    });
+
+    it("should restart when timer is paused", () => {
+      instance.transitionTimer = null;
+      instance.toggleTimer();
+      assert.equal(instance.updatePause.mock.calls[0].arguments[0], false);
+      assert.equal(instance.restartTimer.mock.calls.length, 1);
+    });
+
+    it("should not toggle in manual mode", () => {
+      instance.isManualMode = true;
+      instance.transitionTimer = {id: 789};
+      instance.toggleTimer();
+      assert.equal(instance.updatePause.mock.calls.length, 0);
+    });
+
+    it("should not toggle in positional mode", () => {
+      instance.config.mode = "positional";
+      instance.toggleTimer();
+      assert.equal(instance.updatePause.mock.calls.length, 0);
+    });
+  });
+
+  describe("restartTimer", () => {
+    beforeEach(() => {
+      instance.config.mode = "slides";
+      instance.updatePause = mock.fn();
+      instance.scheduleNextTransition = mock.fn();
+      instance.modulesContext = {currentIndex: 2};
+      instance.isManualMode = false;
+    });
+
+    it("should not restart in manual mode", () => {
+      instance.isManualMode = true;
+      instance.restartTimer();
+      assert.equal(instance.scheduleNextTransition.mock.calls.length, 0);
+    });
+
+    it("should not restart in positional mode", () => {
+      instance.config.mode = "positional";
+      instance.restartTimer();
+      assert.equal(instance.scheduleNextTransition.mock.calls.length, 0);
+    });
+
+    it("should unpause and schedule next transition", () => {
+      instance.restartTimer();
+      assert.equal(instance.updatePause.mock.calls[0].arguments[0], false);
+      assert.equal(instance.scheduleNextTransition.mock.calls.length, 1);
+      assert.equal(instance.scheduleNextTransition.mock.calls[0].arguments[0], 2);
+    });
+  });
+
+  describe("buildModulesContext", () => {
+    it("should build context for slides mode", () => {
+      instance.config.mode = "slides";
+      instance.config.slides = {page1: [],
+        page2: []};
+      instance.config.showPageIndicators = true;
+      instance.config.showPageControls = false;
+      instance.config.slideFadeInSpeed = 500;
+      instance.config.slideFadeOutSpeed = 300;
+      instance.config.timings = {0: 8000};
+
+      const modules = [
+        {name: "clock"},
+        {name: "weather"}
+      ];
+      const ctx = instance.buildModulesContext(modules);
+
+      assert.equal(ctx.modules, modules);
+      assert.deepEqual(ctx.slides, {page1: [],
+        page2: []});
+      assert.equal(ctx.currentIndex, -1);
+      assert.equal(ctx.showPageIndicators, true);
+      assert.equal(ctx.showPageControls, false);
+      assert.equal(ctx.slideFadeInSpeed, 500);
+      assert.equal(ctx.slideFadeOutSpeed, 300);
+      assert.deepEqual(ctx.timings, {0: 8000});
+    });
+
+    it("should build context for global mode without slides", () => {
+      instance.config.mode = "global";
+      const modules = [{name: "calendar"}];
+      const ctx = instance.buildModulesContext(modules);
+
+      assert.equal(ctx.modules, modules);
+      assert.equal(ctx.slides, null);
+    });
+  });
+
+  describe("scheduleNextTransition", () => {
+    beforeEach(() => {
+      instance.isManualMode = false;
+      instance.config.mode = "slides";
+      instance.config.transitionInterval = 10000;
+      instance.config.timings = {};
+      instance.manualTransition = mock.fn();
+    });
+
+    it("should not schedule in manual mode", () => {
+      instance.isManualMode = true;
+      instance.transitionTimer = null;
+      instance.scheduleNextTransition(0);
+      assert.equal(instance.transitionTimer, null);
+    });
+
+    it("should clear existing timer before scheduling", () => {
+      instance.transitionTimer = {id: 999};
+      instance.scheduleNextTransition(0);
+      // Timer should be cleared and rescheduled
+      assert.notEqual(instance.transitionTimer, null);
+      assert.notEqual(instance.transitionTimer.id, 999);
+    });
+
+    it("should use individual slide timing when available", () => {
+      instance.config.timings = {2: 5000};
+      instance.getSlideTimer = mock.fn(() => 5000);
+      instance.scheduleNextTransition(2);
+      assert.equal(instance.getSlideTimer.mock.calls[0].arguments[0], 2);
+    });
+
+    it("should use transitionInterval when no individual timing", () => {
+      instance.config.timings = {}; // Empty timings object
+      instance.config.transitionInterval = 12000;
+      instance.getSlideTimer = mock.fn(() => 12000);
+      instance.scheduleNextTransition(0);
+      // When timings is empty, getSlideTimer is NOT called - uses transitionInterval directly
+      assert.equal(instance.getSlideTimer.mock.calls.length, 0);
+      assert.notEqual(instance.transitionTimer, null);
+    });
+  });
+
+  describe("notificationReceived", () => {
+    beforeEach(() => {
+      instance.manualTransition = mock.fn();
+      instance.restartTimer = mock.fn();
+      instance.toggleTimer = mock.fn();
+      instance.handleToggleAutoMode = mock.fn();
+      instance.handleCarouselGoto = mock.fn();
+      instance.initializeModule = mock.fn();
+      instance.keyHandler = null;
+    });
+
+    it("should initialize module on MODULE_DOM_CREATED", () => {
+      instance.notificationReceived("MODULE_DOM_CREATED", {}, {});
+      assert.equal(instance.initializeModule.mock.calls.length, 1);
+    });
+
+    it("should handle CAROUSEL_NEXT notification", () => {
+      instance.notificationReceived("CAROUSEL_NEXT", {}, {});
+      assert.equal(instance.manualTransition.mock.calls.length, 1);
+      const args = instance.manualTransition.mock.calls[0].arguments;
+      assert.equal(args[0], null);
+      assert.equal(args[1], 1);
+      assert.equal(instance.restartTimer.mock.calls.length, 1);
+    });
+
+    it("should handle CAROUSEL_PREVIOUS notification", () => {
+      instance.notificationReceived("CAROUSEL_PREVIOUS", {}, {});
+      assert.equal(instance.manualTransition.mock.calls.length, 1);
+      const args = instance.manualTransition.mock.calls[0].arguments;
+      assert.equal(args[0], null);
+      assert.equal(args[1], -1);
+    });
+
+    it("should handle CAROUSEL_PLAYPAUSE notification", () => {
+      instance.notificationReceived("CAROUSEL_PLAYPAUSE", {}, {});
+      assert.equal(instance.toggleTimer.mock.calls.length, 1);
+    });
+
+    it("should handle CAROUSEL_TOGGLE_AUTO notification", () => {
+      instance.notificationReceived("CAROUSEL_TOGGLE_AUTO", {}, {});
+      assert.equal(instance.handleToggleAutoMode.mock.calls.length, 1);
+    });
+
+    it("should handle CAROUSEL_GOTO notification", () => {
+      const payload = {slide: "home"};
+      instance.notificationReceived("CAROUSEL_GOTO", payload, {});
+      assert.equal(instance.handleCarouselGoto.mock.calls.length, 1);
+      assert.equal(instance.handleCarouselGoto.mock.calls[0].arguments[0], payload);
+    });
+
+    it("should ignore unknown notifications", () => {
+      instance.notificationReceived("UNKNOWN_NOTIFICATION", {}, {});
+      assert.equal(instance.manualTransition.mock.calls.length, 0);
+    });
+  });
+});
