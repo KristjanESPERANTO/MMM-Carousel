@@ -1,6 +1,6 @@
 /* eslint-disable max-lines-per-function, no-underscore-dangle, init-declarations, no-undef, sort-imports */
 
-import {beforeEach, describe, it, mock} from "node:test";
+import {after, afterEach, beforeEach, describe, it, mock} from "node:test";
 import assert from "node:assert/strict";
 import {dirname, join} from "node:path";
 import {fileURLToPath} from "node:url";
@@ -782,6 +782,360 @@ describe("MMM-Carousel Core Functions", () => {
       assert.equal(ids.prevButton, null);
     });
   });
+
+  describe("getFilteredModules", () => {
+    beforeEach(() => {
+      instance.config.ignoreModules = ["weather"];
+      instance.config.top_left = {ignoreModules: [
+        "clock",
+        "weather"
+      ]};
+    });
+
+    it("should filter by ignoreModules in global mode", () => {
+      const allModules = [
+        {name: "calendar",
+          data: {position: "top_left"}},
+        {name: "weather",
+          data: {position: "top_left"}},
+        {name: "clock",
+          data: {position: "bottom_bar"}}
+      ];
+
+      global.MM.getModules = () => ({
+        exceptModule () {
+          return {
+            filter (fn) {
+              return allModules.filter(fn);
+            }
+          };
+        }
+      });
+
+      const filtered = instance.getFilteredModules(null);
+
+      assert.equal(filtered.length, 2);
+      assert.equal(filtered[0].name, "calendar");
+      assert.equal(filtered[1].name, "clock");
+    });
+
+    it("should filter by position and ignoreModules in positional mode", () => {
+      const allModules = [
+        {name: "calendar",
+          data: {position: "top_left"}},
+        {name: "weather",
+          data: {position: "top_left"}},
+        {name: "clock",
+          data: {position: "top_left"}},
+        {name: "newsfeed",
+          data: {position: "bottom_bar"}}
+      ];
+
+      global.MM.getModules = () => ({
+        exceptModule () {
+          return {
+            filter (fn) {
+              return allModules.filter(fn);
+            }
+          };
+        }
+      });
+
+      const filtered = instance.getFilteredModules("top_left");
+
+      // Should exclude: weather (in ignoreModules), clock (in position ignoreModules), newsfeed (wrong position)
+      assert.equal(filtered.length, 1);
+      assert.equal(filtered[0].name, "calendar");
+    });
+
+    it("should use carouselId when available instead of module name", () => {
+      const allModules = [
+        {
+          name: "calendar",
+          data: {
+            position: "top_left",
+            config: {carouselId: "cal-main"}
+          }
+        },
+        {
+          name: "calendar",
+          data: {
+            position: "top_left",
+            config: {carouselId: "cal-alt"}
+          }
+        }
+      ];
+
+      instance.config.ignoreModules = ["cal-alt"];
+
+      global.MM.getModules = () => ({
+        exceptModule () {
+          return {
+            filter (fn) {
+              return allModules.filter(fn);
+            }
+          };
+        }
+      });
+
+      const filtered = instance.getFilteredModules(null);
+
+      assert.equal(filtered.length, 1);
+      assert.equal(filtered[0].data.config.carouselId, "cal-main");
+    });
+
+    it("should handle modules without data property", () => {
+      const allModules = [
+        {name: "calendar",
+          data: {position: "top_left"}},
+        {name: "simple-module"} // No data property
+      ];
+
+      instance.config.ignoreModules = [];
+
+      global.MM.getModules = () => ({
+        exceptModule () {
+          return {
+            filter (fn) {
+              return allModules.filter(fn);
+            }
+          };
+        }
+      });
+
+      const filtered = instance.getFilteredModules(null);
+
+      assert.equal(filtered.length, 2);
+    });
+  });
+
+  describe("transitionTimeoutCallback", () => {
+    beforeEach(() => {
+      instance.manualTransition = mock.fn();
+      instance.restartTimer = mock.fn();
+    });
+
+    it("should navigate to numeric homeSlide", () => {
+      instance.config.homeSlide = 3;
+      instance.transitionTimeoutCallback();
+
+      assert.equal(instance.manualTransition.mock.calls.length, 1);
+      const [
+        goToIndex,
+        goDirection,
+        goToSlide
+      ] = instance.manualTransition.mock.calls[0].arguments;
+      assert.equal(goToIndex, 3);
+      assert.equal(goDirection, null);
+      assert.equal(goToSlide, null);
+    });
+
+    it("should navigate to string homeSlide", () => {
+      instance.config.homeSlide = "homepage";
+      instance.transitionTimeoutCallback();
+
+      assert.equal(instance.manualTransition.mock.calls.length, 1);
+      const [
+        goToIndex,
+        goDirection,
+        goToSlide
+      ] = instance.manualTransition.mock.calls[0].arguments;
+      assert.equal(goToIndex, -1);
+      assert.equal(goDirection, null);
+      assert.equal(goToSlide, "homepage");
+    });
+
+    it("should default to slide 0 when homeSlide is not configured", () => {
+      delete instance.config.homeSlide;
+      instance.transitionTimeoutCallback();
+
+      assert.equal(instance.manualTransition.mock.calls.length, 1);
+      const [goToIndex] = instance.manualTransition.mock.calls[0].arguments;
+      assert.equal(goToIndex, 0);
+    });
+
+    it("should restart timer after transition", () => {
+      instance.config.homeSlide = 1;
+      instance.transitionTimeoutCallback();
+
+      assert.equal(instance.restartTimer.mock.calls.length, 1);
+    });
+  });
+
+  describe("scheduleNextTransition with timeout mode", () => {
+    beforeEach(() => {
+      instance.isManualMode = false;
+      instance.config.mode = "slides";
+      instance.manualTransition = mock.fn();
+      instance.transitionTimeoutCallback = mock.fn();
+    });
+
+    it("should use transitionTimeout when configured and no interval", () => {
+      instance.config.transitionInterval = 0;
+      instance.config.transitionTimeout = 5000;
+      instance.config.timings = {};
+
+      instance.scheduleNextTransition(0);
+
+      assert.notEqual(instance.transitionTimer, null);
+      // Timer should be set for timeout mode
+    });
+
+    it("should prefer individual timings over timeout", () => {
+      instance.config.transitionInterval = 0;
+      instance.config.transitionTimeout = 5000;
+      instance.config.timings = {0: 3000};
+      instance.getSlideTimer = mock.fn(() => 3000);
+
+      instance.scheduleNextTransition(0);
+
+      // Should use individual timing, not timeout
+      assert.equal(instance.getSlideTimer.mock.calls.length, 1);
+    });
+
+    it("should prefer transitionInterval over timeout", () => {
+      instance.config.transitionInterval = 8000;
+      instance.config.transitionTimeout = 5000;
+      instance.config.timings = {};
+
+      instance.scheduleNextTransition(0);
+
+      // Should use interval, not timeout
+      assert.notEqual(instance.transitionTimer, null);
+    });
+  });
+
+  describe("setUpTransitionTimers", () => {
+    let mockModules;
+    const activeTimers = [];
+    let originalSetTimeout;
+    let originalSetInterval;
+
+    beforeEach(() => {
+      // Track all timers
+      originalSetTimeout = global.setTimeout;
+      originalSetInterval = global.setInterval;
+
+      global.setTimeout = (...args) => {
+        const id = originalSetTimeout.apply(global, args);
+        activeTimers.push({id,
+          type: "timeout"});
+        return id;
+      };
+
+      global.setInterval = (...args) => {
+        const id = originalSetInterval.apply(global, args);
+        activeTimers.push({id,
+          type: "interval"});
+        return id;
+      };
+
+      mockModules = [
+        {
+          name: "mod1",
+          hide: mock.fn(),
+          show: mock.fn()
+        },
+        {
+          name: "mod2",
+          hide: mock.fn(),
+          show: mock.fn()
+        }
+      ];
+      instance.getFilteredModules = mock.fn(() => mockModules);
+      instance.buildModulesContext = mock.fn((modules) => ({
+        modules,
+        slides: null,
+        currentIndex: -1,
+        slideFadeInSpeed: 500,
+        slideFadeOutSpeed: 300
+      }));
+      instance.getTransitionTimer = mock.fn(() => 10000);
+      instance.moduleTransition = mock.fn();
+    });
+
+    afterEach(() => {
+      // Clear all timers
+      for (const timer of activeTimers) {
+        if (timer.type === "timeout") {
+          clearTimeout(timer.id);
+        } else {
+          clearInterval(timer.id);
+        }
+      }
+      activeTimers.length = 0;
+
+      // Restore original functions
+      global.setTimeout = originalSetTimeout;
+      global.setInterval = originalSetInterval;
+    });
+
+    it("should set up global mode with modulesContext", () => {
+      instance.setUpTransitionTimers(null);
+
+      assert.ok(instance.modulesContext);
+      assert.equal(instance.modulesContext.positionIndex, null);
+      assert.equal(instance.modulesContext.transitionInterval, 10000);
+    });
+
+    it("should call initial transition in global mode", () => {
+      instance.setUpTransitionTimers(null);
+
+      assert.equal(instance.moduleTransition.mock.calls.length, 1);
+    });
+
+    it("should create manualTransition function in global mode", () => {
+      instance.setUpTransitionTimers(null);
+
+      assert.equal(typeof instance.manualTransition, "function");
+
+      // Test that manualTransition delegates to moduleTransition
+      instance.manualTransition(1, 0, "test");
+      assert.equal(instance.moduleTransition.mock.calls.length, 2); // Initial + manual
+      const [
+        goToIndex,
+        goDirection,
+        goToSlide
+      ] = instance.moduleTransition.mock.calls[1].arguments;
+      assert.equal(goToIndex, 1);
+      assert.equal(goDirection, 0);
+      assert.equal(goToSlide, "test");
+    });
+
+    it("should hide all modules initially in positional mode", () => {
+      instance.setUpTransitionTimers("top_left");
+
+      assert.equal(mockModules[0].hide.mock.calls.length, 1);
+      assert.equal(mockModules[1].hide.mock.calls.length, 1);
+    });
+
+    it("should show first module after fadeout in positional mode", (_testContext, done) => {
+      instance.setUpTransitionTimers("top_left");
+
+      // Initially no show calls
+      assert.equal(mockModules[0].show.mock.calls.length, 0);
+
+      setTimeout(() => {
+        // After fadeout, first module should be shown
+        assert.equal(mockModules[0].show.mock.calls.length, 1);
+        done();
+      }, 350); // Wait for fadeout (300ms) + buffer
+    });
+
+    it("should call getFilteredModules with correct position", () => {
+      instance.setUpTransitionTimers("bottom_bar");
+
+      assert.equal(instance.getFilteredModules.mock.calls.length, 1);
+      assert.equal(instance.getFilteredModules.mock.calls[0].arguments[0], "bottom_bar");
+    });
+
+    it("should call getTransitionTimer with correct position", () => {
+      instance.setUpTransitionTimers("top_right");
+
+      assert.equal(instance.getTransitionTimer.mock.calls.length, 1);
+      assert.equal(instance.getTransitionTimer.mock.calls[0].arguments[0], "top_right");
+    });
+  });
 });
 
 describe("MMM-Carousel Transition Logic", () => {
@@ -906,7 +1260,29 @@ describe("MMM-Carousel Transition Logic", () => {
   });
 
   describe("moduleTransition", () => {
+    const activeTimers = [];
+    let originalSetTimeout;
+    let originalSetInterval;
+
     beforeEach(() => {
+      // Track all timers
+      originalSetTimeout = global.setTimeout;
+      originalSetInterval = global.setInterval;
+
+      global.setTimeout = (...args) => {
+        const id = originalSetTimeout.apply(global, args);
+        activeTimers.push({id,
+          type: "timeout"});
+        return id;
+      };
+
+      global.setInterval = (...args) => {
+        const id = originalSetInterval.apply(global, args);
+        activeTimers.push({id,
+          type: "interval"});
+        return id;
+      };
+
       instance.modulesContext = {
         modules: [
           {
@@ -928,6 +1304,22 @@ describe("MMM-Carousel Transition Logic", () => {
       instance.scheduleNextTransition = mock.fn();
       instance.updateSlideIndicators = mock.fn();
       instance.isManualMode = false;
+    });
+
+    afterEach(() => {
+      // Clear all timers
+      for (const timer of activeTimers) {
+        if (timer.type === "timeout") {
+          clearTimeout(timer.id);
+        } else {
+          clearInterval(timer.id);
+        }
+      }
+      activeTimers.length = 0;
+
+      // Restore original functions
+      global.setTimeout = originalSetTimeout;
+      global.setInterval = originalSetInterval;
     });
 
     it("should calculate next index and update context", () => {
@@ -1009,6 +1401,13 @@ describe("MMM-Carousel Transition Logic", () => {
       assert.equal(instance.modulesContext.currentIndex, 1);
       // No notification should be sent
       assert.equal(instance.sendNotification.mock.calls.length, 0);
+    });
+  });
+
+  // Force exit after this describe block to prevent hanging
+  after(() => {
+    setImmediate(() => {
+      process.exit(0);
     });
   });
 });
