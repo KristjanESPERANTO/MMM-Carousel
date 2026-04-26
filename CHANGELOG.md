@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.7.4](https://github.com/shbatm/MMM-Carousel/compare/v0.7.3...v0.7.4) (2026-04-26)
+
+
+### Chores
+
+* simplify prepare script to use simple-git-hooks directly ([1d10fce](https://github.com/shbatm/MMM-Carousel/commit/1d10fce4dcb9983f3befc692b4615d6b7cca8ebc))
+* update devDependencies ([01c2ee5](https://github.com/shbatm/MMM-Carousel/commit/01c2ee52b525ba9e95c9bf03d9febf4370356882))
+
 ## [0.7.3](https://github.com/shbatm/MMM-Carousel/compare/v0.7.2...v0.7.3) (2026-02-16)
 
 
